@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  hello-serveless-world
+
+  Sample SAM Template for hello-serveless-world
+Parameters:
+  IAMExecutionRole: 
+    Description: IAM role ARN of Lambda execution role.
+    Type: String
+  CognitoUserPoolName:
+    Description: Name for your Cognito user pool
+    Type: String
+  CognitoUserPoolClientName:
+    Description: Name for your Cognito user pool client
+    Type: String
+  CognitoUserPoolDomain:
+    Description: Domain name for your Cognito user pool
+    Type: String
+  CognitoUserPoolResourceServerName:
+    Description: Name for your Cognito user pool Cognito user pool resource server
+    Type: String
+  CognitoUserPoolResourceServerIdentifier:
+    Description: Identifier for your Cognito user pool
+    Type: String
+
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  # MyApi:
+  #   Type: AWS::Serverless::Api
+  #   Properties:
+  #     Name: msc-lambda-access-client
+  #     StageName: Prod
+  #     Cors: "'*'"
+  #     Auth:
+  #       DefaultAuthorizer: MyCognitoAuthorizer
+  #       Authorizers:
+  #         MyCognitoAuthorizer:
+  #           UserPoolArn: !GetAtt MyCognitoUserPool.Arn
+  MyApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: Prod 
+      CorsConfiguration: 
+        AllowOrigins:
+          - "*"
+      Auth:
+        DefaultAuthorizer: JWTTokenAuthorizer
+        Authorizers:
+          JWTTokenAuthorizer:
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPool}
+              audience: 
+                - !Ref MyCognitoUserPoolClient
+            IdentitySource: "$request.header.Authorization"
+
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: hello-world/
+      Handler: app.lambdaHandler
+      Runtime: nodejs12.x
+      Role: !Ref IAMExecutionRole
+      Events:
+        HelloWorld:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MyApi
+            Path: /hello
+            Method: get
+        HellWorld:
+          Type: HttpApi 
+          Properties:
+            ApiId: !Ref MyApi
+            Path: /world
+            Method: get
+  HelloMarsFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: our-awesome-app-one/
+      Handler: app.lambdaHandler
+      Runtime: nodejs12.x
+      Role: !Ref IAMExecutionRole
+      Events:
+        HelloMars:
+          Type: HttpApi 
+          Properties:
+            ApiId: !Ref MyApi
+            Path: /mars
+            Method: get
+  AppTwoFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: awesome-app-two/
+      Handler: app.lambdaHandler
+      Runtime: nodejs12.x
+      Role: !Ref IAMExecutionRole
+      Events:
+        HelloMars:
+          Type: HttpApi 
+          Properties:
+            ApiId: !Ref MyApi
+            Path: /apptwo
+            Method: get
+          
+  MyCognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref CognitoUserPoolName
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+      UsernameAttributes:
+        - email
+      Schema:
+        - AttributeDataType: String
+          Name: email
+          Required: false
+  
+  MyCognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref MyCognitoUserPool
+      ClientName: !Ref CognitoUserPoolClientName
+      GenerateSecret: true
+      AllowedOAuthFlows: 
+        - client_credentials
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes: 
+        - msc-lambda-access-client/create
+        - msc-lambda-access-client/update
+    DependsOn: UserPoolResourceServer
+
+
+  UserPoolDomain: 
+    Type: AWS::Cognito::UserPoolDomain 
+    Properties:
+      UserPoolId: !Ref MyCognitoUserPool 
+      Domain: !Ref CognitoUserPoolDomain
+
+  UserPoolResourceServer: 
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties: 
+      UserPoolId: !Ref MyCognitoUserPool 
+      Identifier:  !Ref CognitoUserPoolResourceServerIdentifier
+      Name: !Ref CognitoUserPoolResourceServerName
+      Scopes: 
+        - ScopeName: "create" 
+          ScopeDescription: "create" 
+        - ScopeName: "update"
+          ScopeDescription: "update"
+
+# Outputs:
+#   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+#   # Find out more about other implicit resources you can reference within SAM
+#   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+#   HelloWorldApi:
+#     Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+#     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+#   HelloWorldFunction:
+#     Description: "Hello World Lambda Function ARN"
+#     Value: !GetAtt HelloWorldFunction.Arn
+#   HelloWorldFunctionIamRole:
+#     Description: "Implicit IAM Role created for Hello World function"
+#     Value: !GetAtt HelloWorldFunctionRole.Arn
