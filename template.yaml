@@ -29,24 +29,19 @@ Globals:
     Timeout: 3
 
 Resources:
-  # MyApi:
-  #   Type: AWS::Serverless::Api
-  #   Properties:
-  #     Name: msc-lambda-access-client
-  #     StageName: Prod
-  #     Cors: "'*'"
-  #     Auth:
-  #       DefaultAuthorizer: MyCognitoAuthorizer
-  #       Authorizers:
-  #         MyCognitoAuthorizer:
-  #           UserPoolArn: !GetAtt MyCognitoUserPool.Arn
   MyApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: Prod 
       CorsConfiguration: 
         AllowOrigins:
-          - "*"
+          - "http://*"
+          - "https://*"
+        AllowHeaders:
+          - authorization
+        AllowMethods:
+          - GET
+        MaxAge: 3600
       Auth:
         DefaultAuthorizer: JWTTokenAuthorizer
         Authorizers:
@@ -80,7 +75,7 @@ Resources:
   HelloMarsFunction:
     Type: AWS::Serverless::Function 
     Properties:
-      CodeUri: our-awesome-app-one/
+      CodeUri: awesome-app-one/
       Handler: app.lambdaHandler
       Runtime: nodejs12.x
       Role: !Ref IAMExecutionRole
@@ -130,8 +125,8 @@ Resources:
         - client_credentials
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthScopes: 
-        - msc-lambda-access-client/create
-        - msc-lambda-access-client/update
+        - !Join ["/", [!Ref CognitoUserPoolClientName, "create"]]
+        - !Join ["/", [!Ref CognitoUserPoolClientName, "update"]]
     DependsOn: UserPoolResourceServer
 
 
@@ -152,17 +147,3 @@ Resources:
           ScopeDescription: "create" 
         - ScopeName: "update"
           ScopeDescription: "update"
-
-# Outputs:
-#   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-#   # Find out more about other implicit resources you can reference within SAM
-#   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-#   HelloWorldApi:
-#     Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-#     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-#   HelloWorldFunction:
-#     Description: "Hello World Lambda Function ARN"
-#     Value: !GetAtt HelloWorldFunction.Arn
-#   HelloWorldFunctionIamRole:
-#     Description: "Implicit IAM Role created for Hello World function"
-#     Value: !GetAtt HelloWorldFunctionRole.Arn

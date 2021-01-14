@@ -1,5 +1,221 @@
-# Provide these with valid inputs as your parameters in AWS CodePipeline
+# AWS SAM Lambda Sample app with Cognito
 
+## Introduction
+
+This project contains source code and instructions to create simple AWS Lambda application as a backend and API Gateway to invoke the Lambda. Also instructions to configure AWS Cognito to secure the authentication between API gateway and the client application. And of cause I'm going to use AWS CodePipeline to configure the CI/CD pipeline. So this will be a awesome jurney. 
+
+## Technologies
+- Node.js
+- AWS Lambda
+- AWS SAM
+- AWS Cognito
+- AWS API Gateway
+- AWS CodeCommit
+- AWS CodeBuild
+- AWS CodePipeline
+
+## Prerequisites 
+
+1. An AWS Account
+2. Text Editor (I'm using VS Code, because it's awesome.)
+
+## Let's get started
+
+These are the steps that I'm going to cover. So, buckle up falks!!!
+1. Create the repository in AWS
+2. Configure SAM template(`template.yaml`) file
+    1. Configure parameters
+    2. Configure Cognito resources
+    3. Configure API gateway
+    4. Configure Lambda function
+3. Configure `buildspec.yml` file
+4. Configure CI/CD pipeline (AWS CodePipeline)
+
+## 1. Create the repository in AWS
+
+You can use AWS SAM template to create the project. Please visit [AWS SAM official GitHub](https://github.com/aws/serverless-application-model) page for more details. Otherwise you can fork this repo and test the functionality.
+
+To see how you can create the AWS CodeCommit repository please read my [Medium](https://medium.com/@thusithadananjaya) post (Coming Soon).
+
+## 2. Configure SAM template.
+
+Introuduction about SAM
+
+### Configure Parameters
+
+For this example I'm going to use these parameters. You can pass these values from the AWS CodePipeline as parameters.
+
+- `IAMExecutionRole` - AWS user role to execute the Lambda.
+- `CognitoUserPoolName` - AWS Cognito userpool name.
+- `CognitoUserPoolClientName` - The name for AWS Cognito User Pool client.
+- `CognitoUserPoolDomain` - The domain prefix that we are going to use to get the token.
+- `CognitoUserPoolResourceServerName` - Resource Server name for AWS Cognito User Pool Resource Server.
+- `CognitoUserPoolResourceServerIdentifier` - Unique identifier for AWS Cognito User Pool Resource Server.
+
+Configure `template.yaml` file with bellow configs if you need to have a dynamic template.
+
+```yaml
+Parameters:
+  IAMExecutionRole: 
+    Description: IAM role ARN of Lambda execution role.
+    Type: String
+  CognitoUserPoolName:
+    Description: Name for your Cognito user pool
+    Type: String
+  CognitoUserPoolClientName:
+    Description: Name for your Cognito user pool client
+    Type: String
+  CognitoUserPoolDomain:
+    Description: Domain name for your Cognito user pool
+    Type: String
+  CognitoUserPoolResourceServerName:
+    Description: Name for your Cognito user pool Cognito user pool resource server
+    Type: String
+  CognitoUserPoolResourceServerIdentifier:
+    Description: Identifier for your Cognito user pool resource server
+    Type: String
+```
+
+### Configure Cognito User Pool.
+
+Since we are planning to use AWS Cognito to authenticate client app with the Lambda functions, fist we need to configure AWS Cognito User Pool.
+
+```yaml
+  MyCognitoUserPool: # You can choose your own name.
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: !Ref CognitoUserPoolName # Refferencing User Pool Name parameter.
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+        UsernameAttributes:
+          - email
+        Schema:
+          - AttributeDataType: String
+            Name: email
+            Required: false
+```
+
+### Configure Cognito User Client
+
+To get the token first we need to have a client for our User Pool. You can use bellow configurations to create the User Pool Client.
+
+```yaml
+  MyCognitoUserPoolClient: # You can choose your own name.
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref MyCognitoUserPool # Refferencing Cognito User Pool created previously.
+      ClientName: !Ref CognitoUserPoolClientName # Refferencing User Pool Client Name parameter.
+      GenerateSecret: true
+      AllowedOAuthFlows: 
+        - client_credentials
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes: 
+        - !Join ["/", [!Ref CognitoUserPoolClientName, "create"]] # You can configure Authentication scopes also.
+        - !Join ["/", [!Ref CognitoUserPoolClientName, "update"]]
+    DependsOn: UserPoolResourceServer
+```
+
+### Configure Cognito User Pool Domain
+
+To generate the token we need to have a valid domain name configure with our AWS Cognito User Pool. You can configure your own domain name or you can choose a domain from AWS.
+
+```yaml
+  UserPoolDomain: 
+    Type: AWS::Cognito::UserPoolDomain 
+    Properties:
+      UserPoolId: !Ref MyCognitoUserPool # Refferencing Congnito User Pool domain name parameter. 
+      Domain: !Ref CognitoUserPoolDomain
+```
+
+### Configure User Pool Resource Server.
+
+Configurations for Cognito user pool resource server.
+
+```yaml
+  UserPoolResourceServer: 
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties: 
+      UserPoolId: !Ref MyCognitoUserPool 
+      Identifier:  !Ref CognitoUserPoolResourceServerIdentifier
+      Name: !Ref CognitoUserPoolResourceServerName
+      Scopes: 
+        - ScopeName: "create" 
+          ScopeDescription: "create" 
+        - ScopeName: "update"
+          ScopeDescription: "update"
+```
+
+### Configure API Gateway.
+
+Since we are going to use OAuth 2.0 as the authentication mechanism, wh have to use `AWS::Serverless::HttpApi` resource type when creating the API gateway.
+
+```yaml
+MyApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: Prod 
+      CorsConfiguration: 
+        AllowOrigins:
+          - "http://*"
+          - "https://*"
+        AllowHeaders:
+          - authorization
+        AllowMethods:
+          - GET
+        MaxAge: 3600
+      Auth:
+        DefaultAuthorizer: JWTTokenAuthorizer
+        Authorizers:
+          JWTTokenAuthorizer:
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${MyCognitoUserPool}
+              audience: 
+                - !Ref MyCognitoUserPoolClient
+            IdentitySource: "$request.header.Authorization"
+```
+
+### Configure AWS Lambda function.
+
+```yaml
+HelloWorldFunction: # You can use any name that you preffered.
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: hello-world/ # Source code folder.
+      Handler: app.lambdaHandler
+      Runtime: nodejs12.x
+      Role: !Ref IAMExecutionRole # Lambda execution role.
+      Events:
+        HelloWorld:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MyApi # Refferencing API Gateway configurations.
+            Path: /hello # API path
+            Method: get # HTTP method
+```
+
+## 3. Configure `buildspec.yml` file
+
+When you configuring the AWS CI/CD pipeline, you need to have a repository and instructions to execute when you need to build and store the artifacts. In `buildspec.yaml` you can configure all the build instructions that you need to execute. 
+
+```yaml
+version: 0.1
+phases:
+  install:
+    commands:
+      - aws cloudformation package --template-file template.yaml --s3-bucket ADD_YOUR_BUCKET_NAME_HERE --output-template-file outputSamTemplate.yaml
+artifacts:
+  type: zip
+  files:
+    - template.yaml
+    - outputSamTemplate.yaml
+```
+
+## 4. Configure CI/CD pipeline (AWS CodePipeline)
+
+Please read my [Medium](https://medium.com/@thusithadananjaya) post(Coming Soon) to configure the CI/CD pipleline. 
+
+ Please add bellow configuration to the CI/CD Pipeline as overridden parameters.
 ```json
 {
     "IAMExecutionRole": "",
@@ -10,132 +226,3 @@
     "CognitoUserPoolResourceServerIdentifier": ""
 }
 ```
-
-
-
-
-
-
-
-
-
-# hello-serveless-world
-
-This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
-
-- hello-world - Code for the application's Lambda function.
-- events - Invocation events that you can use to invoke the function.
-- hello-world/tests - Unit tests for the application code. 
-- template.yaml - A template that defines the application's AWS resources.
-
-The application uses several AWS resources, including Lambda functions and an API Gateway API. These resources are defined in the `template.yaml` file in this project. You can update the template to add AWS resources through the same deployment process that updates your application code.
-
-If you prefer to use an integrated development environment (IDE) to build and test your application, you can use the AWS Toolkit.  
-The AWS Toolkit is an open source plug-in for popular IDEs that uses the SAM CLI to build and deploy serverless applications on AWS. The AWS Toolkit also adds a simplified step-through debugging experience for Lambda function code. See the following links to get started.
-
-* [PyCharm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [IntelliJ](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [VS Code](https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/welcome.html)
-* [Visual Studio](https://docs.aws.amazon.com/toolkit-for-visual-studio/latest/user-guide/welcome.html)
-
-## Deploy the sample application
-
-The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications. It uses Docker to run your functions in an Amazon Linux environment that matches Lambda. It can also emulate your application's build environment and API.
-
-To use the SAM CLI, you need the following tools.
-
-* SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-* Node.js - [Install Node.js 10](https://nodejs.org/en/), including the NPM package management tool.
-* Docker - [Install Docker community edition](https://hub.docker.com/search/?type=edition&offering=community)
-
-To build and deploy your application for the first time, run the following in your shell:
-
-```bash
-sam build
-sam deploy --guided
-```
-
-The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:
-
-* **Stack Name**: The name of the stack to deploy to CloudFormation. This should be unique to your account and region, and a good starting point would be something matching your project name.
-* **AWS Region**: The AWS region you want to deploy your app to.
-* **Confirm changes before deploy**: If set to yes, any change sets will be shown to you before execution for manual review. If set to no, the AWS SAM CLI will automatically deploy application changes.
-* **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modified IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
-* **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
-
-You can find your API Gateway Endpoint URL in the output values displayed after deployment.
-
-## Use the SAM CLI to build and test locally
-
-Build your application with the `sam build` command.
-
-```bash
-hello-serveless-world$ sam build
-```
-
-The SAM CLI installs dependencies defined in `hello-world/package.json`, creates a deployment package, and saves it in the `.aws-sam/build` folder.
-
-Test a single function by invoking it directly with a test event. An event is a JSON document that represents the input that the function receives from the event source. Test events are included in the `events` folder in this project.
-
-Run functions locally and invoke them with the `sam local invoke` command.
-
-```bash
-hello-serveless-world$ sam local invoke HelloWorldFunction --event events/event.json
-```
-
-The SAM CLI can also emulate your application's API. Use the `sam local start-api` to run the API locally on port 3000.
-
-```bash
-hello-serveless-world$ sam local start-api
-hello-serveless-world$ curl http://localhost:3000/
-```
-
-The SAM CLI reads the application template to determine the API's routes and the functions that they invoke. The `Events` property on each function's definition includes the route and method for each path.
-
-```yaml
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
-```
-
-## Add a resource to your application
-The application template uses AWS Serverless Application Model (AWS SAM) to define application resources. AWS SAM is an extension of AWS CloudFormation with a simpler syntax for configuring common serverless application resources such as functions, triggers, and APIs. For resources not included in [the SAM specification](https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md), you can use standard [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) resource types.
-
-## Fetch, tail, and filter Lambda function logs
-
-To simplify troubleshooting, SAM CLI has a command called `sam logs`. `sam logs` lets you fetch logs generated by your deployed Lambda function from the command line. In addition to printing the logs on the terminal, this command has several nifty features to help you quickly find the bug.
-
-`NOTE`: This command works for all AWS Lambda functions; not just the ones you deploy using SAM.
-
-```bash
-hello-serveless-world$ sam logs -n HelloWorldFunction --stack-name hello-serveless-world --tail
-```
-
-You can find more information and examples about filtering Lambda function logs in the [SAM CLI Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-logging.html).
-
-## Unit tests
-
-Tests are defined in the `hello-world/tests` folder in this project. Use NPM to install the [Mocha test framework](https://mochajs.org/) and run unit tests.
-
-```bash
-hello-serveless-world$ cd hello-world
-hello-world$ npm install
-hello-world$ npm run test
-```
-
-## Cleanup
-
-To delete the sample application that you created, use the AWS CLI. Assuming you used your project name for the stack name, you can run the following:
-
-```bash
-aws cloudformation delete-stack --stack-name hello-serveless-world
-```
-
-## Resources
-
-See the [AWS SAM developer guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for an introduction to SAM specification, the SAM CLI, and serverless application concepts.
-
-Next, you can use AWS Serverless Application Repository to deploy ready to use Apps that go beyond hello world samples and learn how authors developed their applications: [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/)
