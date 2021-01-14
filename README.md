@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This project contains source code and instructions to create simple AWS Lambda application as a backend and API Gateway to invoke the Lambda. Also instructions to configure AWS Cognito to secure the authentication between API gateway and the client application. And of cause I'm going to use AWS CodePipeline to configure the CI/CD pipeline. So this will be a awesome jurney. 
+This project contains source code and instructions to create a simple AWS Lambda application as a backend and API Gateway to invoke the Lambda. Also, instructions to configure AWS Cognito to secure the authentication between the API gateway and the client application. Furthermore, We are going to use AWS CodePipeline to configure the CI/CD pipeline. So this will be a fantastic journey. 
 
 ## Technologies
 - Node.js
@@ -17,25 +17,25 @@ This project contains source code and instructions to create simple AWS Lambda a
 ## Prerequisites 
 
 1. An AWS Account
-2. Text Editor (I'm using VS Code, because it's awesome.)
+2. Text Editor (I am using VS Code because it is incredible.)
 
-## Let's get started
+## Let us get started
 
-These are the steps that I'm going to cover. So, buckle up falks!!!
+These are the steps that I am going to cover. So, buckle up, folks!!!
 1. Create the repository in AWS
 2. Configure SAM template(`template.yaml`) file
     1. Configure parameters
     2. Configure Cognito resources
     3. Configure API gateway
-    4. Configure Lambda function
+    4. Configure the Lambda function
 3. Configure `buildspec.yml` file
-4. Configure CI/CD pipeline (AWS CodePipeline)
+4. Configure the CI/CD pipeline (AWS CodePipeline)
 
 ## 1. Create the repository in AWS
 
-You can use AWS SAM template to create the project. Please visit [AWS SAM official GitHub](https://github.com/aws/serverless-application-model) page for more details. Otherwise you can fork this repo and test the functionality.
+We can use the AWS SAM template to create the project. Please visit [AWS SAM official GitHub](https://github.com/aws/serverless-application-model) page for more details. Otherwise, you can fork this repo and test the functionality.
 
-To see how you can create the AWS CodeCommit repository please read my [Medium](https://medium.com/@thusithadananjaya) post (Coming Soon).
+To see how we can create the AWS CodeCommit repository, please read my [Medium](https://medium.com/@thusithadananjaya) post (Coming Soon).
 
 ## 2. Configure SAM template.
 
@@ -43,7 +43,7 @@ Introuduction about SAM
 
 ### Configure Parameters
 
-For this example I'm going to use these parameters. You can pass these values from the AWS CodePipeline as parameters.
+For this example We are going to use these parameters. You can pass these values from the AWS CodePipeline as parameters.
 
 - `IAMExecutionRole` - AWS user role to execute the Lambda.
 - `CognitoUserPoolName` - AWS Cognito userpool name.
@@ -78,7 +78,7 @@ Parameters:
 
 ### Configure Cognito User Pool.
 
-Since we are planning to use AWS Cognito to authenticate client app with the Lambda functions, fist we need to configure AWS Cognito User Pool.
+Since we plan to use AWS Cognito to authenticate the client app with the Lambda functions, we need to configure AWS Cognito User Pool.
 
 ```yaml
   MyCognitoUserPool: # You can choose your own name.
@@ -98,7 +98,7 @@ Since we are planning to use AWS Cognito to authenticate client app with the Lam
 
 ### Configure Cognito User Client
 
-To get the token first we need to have a client for our User Pool. You can use bellow configurations to create the User Pool Client.
+To get the token first, we need to have a client for our User Pool. You can use the below configurations to create the User Pool Client.
 
 ```yaml
   MyCognitoUserPoolClient: # You can choose your own name.
@@ -118,7 +118,7 @@ To get the token first we need to have a client for our User Pool. You can use b
 
 ### Configure Cognito User Pool Domain
 
-To generate the token we need to have a valid domain name configure with our AWS Cognito User Pool. You can configure your own domain name or you can choose a domain from AWS.
+To generate the token, we need to have a valid domain name configure with our AWS Cognito User Pool. You can configure your domain name, or you can choose a domain from AWS.
 
 ```yaml
   UserPoolDomain: 
@@ -148,7 +148,7 @@ Configurations for Cognito user pool resource server.
 
 ### Configure API Gateway.
 
-Since we are going to use OAuth 2.0 as the authentication mechanism, wh have to use `AWS::Serverless::HttpApi` resource type when creating the API gateway.
+Since we will use OAuth 2.0 as the authentication mechanism, wh have to use the `AWS::Serverless::HttpApi` resource type when creating the API gateway.
 
 ```yaml
 MyApi:
@@ -196,7 +196,7 @@ HelloWorldFunction: # You can use any name that you preffered.
 
 ## 3. Configure `buildspec.yml` file
 
-When you configuring the AWS CI/CD pipeline, you need to have a repository and instructions to execute when you need to build and store the artifacts. In `buildspec.yaml` you can configure all the build instructions that you need to execute. 
+When you are configuring the AWS CI/CD pipeline, you need to have a repository and instructions to execute when you need to build and store the artifacts. In `buildspec.yaml` you can configure all the build instructions that you need to execute. 
 
 ```yaml
 version: 0.1
@@ -213,9 +213,9 @@ artifacts:
 
 ## 4. Configure CI/CD pipeline (AWS CodePipeline)
 
-Please read my [Medium](https://medium.com/@thusithadananjaya) post(Coming Soon) to configure the CI/CD pipleline. 
+Please read my [Medium](https://medium.com/@thusithadananjaya) post(Coming Soon) to configure the CI/CD pipeline. 
 
- Please add bellow configuration to the CI/CD Pipeline as overridden parameters.
+ Please add the bellow configuration to the CI/CD Pipeline as overridden parameters.
 ```json
 {
     "IAMExecutionRole": "",
